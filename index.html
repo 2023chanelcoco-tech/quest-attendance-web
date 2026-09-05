@@ -30,6 +30,8 @@
     }
   }
   *{box-sizing:border-box}
+  /* display 를 지정한 요소는 hidden 속성만으로 안 숨는다. 브라우저 기본값을 이걸로 덮는다. */
+  [hidden]{display:none !important}
   body{
     margin:0; background:var(--bg); color:var(--text);
     font:16px/1.5 -apple-system,BlinkMacSystemFont,"Apple SD Gothic Neo","Pretendard",
