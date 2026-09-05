@@ -1,0 +1,471 @@
+<!doctype html>
+<html lang="ko">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>퀘스트 아카데미 · 출석</title>
+
+<!-- 아이폰에서 "홈 화면에 추가" 하면 주소창 없이 앱처럼 열리게 하는 설정 -->
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="default">
+<meta name="apple-mobile-web-app-title" content="출석">
+<meta name="theme-color" content="#1a3fa0">
+<link rel="icon" href="./logo.png">
+<link rel="apple-touch-icon" href="./apple-touch-icon.png">
+
+<style>
+  /* ---- 색 ---- 라이트/다크 모두 대응. 아이폰 설정에 따라 자동으로 바뀝니다. */
+  :root{
+    --bg:#f6f7f9; --card:#ffffff; --line:#e3e6ea;
+    --text:#16191d; --dim:#6b7280;
+    --brand:#1a3fa0; --ok:#16a34a; --warn:#d97706;
+    --okbg:#eaf7ee; --brandbg:#e8edf9;
+  }
+  @media (prefers-color-scheme: dark){
+    :root{
+      --bg:#0f1216; --card:#171b21; --line:#262c35;
+      --text:#e8eaed; --dim:#9aa4b2;
+      --brand:#7ea2f0; --ok:#4ade80; --warn:#fbbf24;
+      --okbg:#14251b; --brandbg:#161d2e;
+    }
+  }
+  *{box-sizing:border-box}
+  body{
+    margin:0; background:var(--bg); color:var(--text);
+    font:16px/1.5 -apple-system,BlinkMacSystemFont,"Apple SD Gothic Neo","Pretendard",
+         "Malgun Gothic",system-ui,sans-serif;
+    -webkit-text-size-adjust:100%;
+    padding-bottom:env(safe-area-inset-bottom);
+  }
+  .wrap{max-width:640px;margin:0 auto;padding:0 14px 40px}
+
+  header{
+    position:sticky; top:0; z-index:5; background:var(--bg);
+    padding-top:calc(env(safe-area-inset-top) + 12px); padding-bottom:6px;
+  }
+  h1{font-size:19px;margin:0 0 10px;display:flex;align-items:center;gap:8px}
+  h1 img{width:28px;height:28px;flex:none}
+  h1 small{font-weight:400;font-size:13px;color:var(--dim);min-width:0;overflow:hidden;text-overflow:ellipsis}
+
+  /* ---- 로딩·로그인 화면의 큰 로고 ---- */
+  .splash{
+    display:flex;flex-direction:column;align-items:center;justify-content:center;
+    gap:18px;min-height:64vh;text-align:center;
+  }
+  .splash img{width:min(58vw,240px);height:auto}
+  .splash .cap{font-size:14px;color:var(--dim)}
+  .dots::after{display:inline-block;width:1.2em;text-align:left;content:"";animation:dots 1.2s steps(4,end) infinite}
+  @keyframes dots{0%{content:""}25%{content:"."}50%{content:".."}75%{content:"..."}}
+
+  /* ---- 탭 ---- */
+  .tabs{display:flex;gap:6px;margin-bottom:10px}
+  .tabs button{
+    flex:1; padding:10px 0; border:1px solid var(--line); background:var(--card);
+    color:var(--dim); border-radius:10px; font-size:15px; font-weight:600;
+    cursor:pointer; -webkit-tap-highlight-color:transparent;
+  }
+  .tabs button[aria-selected="true"]{background:var(--brand);color:#fff;border-color:var(--brand)}
+
+  /* ---- 카드/줄 ---- */
+  .card{background:var(--card);border:1px solid var(--line);border-radius:12px;overflow:hidden}
+  .row{
+    display:flex;align-items:center;gap:10px;padding:13px 14px;
+    border-top:1px solid var(--line);
+  }
+  .card .row:first-child{border-top:none}
+  .row.tap{cursor:pointer;-webkit-tap-highlight-color:rgba(0,0,0,.05)}
+  .row .grow{flex:1;min-width:0}
+  .name{font-weight:600}
+  .sub{font-size:13px;color:var(--dim);margin-top:2px}
+  .time{font-variant-numeric:tabular-nums;font-size:14px;white-space:nowrap;text-align:right}
+  .in{color:var(--ok);font-weight:600}
+  .out{color:var(--dim)}
+
+  .pill{
+    display:inline-block;padding:2px 8px;border-radius:999px;
+    font-size:12px;font-weight:600;background:var(--brandbg);color:var(--brand);
+  }
+  .pill.grey{background:var(--line);color:var(--dim)}
+
+  .section{margin:18px 0 8px;font-size:13px;font-weight:700;color:var(--dim)}
+  .empty{padding:26px 14px;text-align:center;color:var(--dim);font-size:14px}
+
+  /* ---- 날짜 이동 ---- */
+  .datebar{display:flex;align-items:center;gap:8px;margin-bottom:10px}
+  .datebar button{
+    width:42px;height:40px;border:1px solid var(--line);background:var(--card);
+    color:var(--text);border-radius:10px;font-size:18px;cursor:pointer;
+  }
+  .datebar .today{
+    flex:1;text-align:center;font-weight:700;font-size:16px;
+    padding:10px;border:1px solid var(--line);background:var(--card);border-radius:10px;
+  }
+
+  /* ---- 버튼/입력 ---- */
+  button.primary{
+    width:100%;padding:14px;border:none;border-radius:10px;
+    background:var(--brand);color:#fff;font-size:16px;font-weight:700;cursor:pointer;
+  }
+  button.primary:disabled{opacity:.5;cursor:default}
+  input[type=email]{
+    width:100%;padding:14px;border:1px solid var(--line);border-radius:10px;
+    background:var(--card);color:var(--text);font-size:16px;margin-bottom:10px;
+  }
+  a.call{
+    display:inline-block;padding:9px 14px;border-radius:10px;
+    background:var(--okbg);color:var(--ok);font-weight:700;
+    text-decoration:none;font-size:14px;
+  }
+  .linkbtn{background:none;border:none;color:var(--brand);font-size:14px;cursor:pointer;padding:0}
+  .msg{font-size:14px;color:var(--dim);margin-top:12px;line-height:1.6}
+  .err{color:#dc2626}
+</style>
+</head>
+<body>
+<div class="wrap">
+  <header>
+    <h1><img src="./logo.png" alt="">출석 <small id="who"></small></h1>
+    <div id="tabs" class="tabs" hidden>
+      <button data-view="day"      aria-selected="true">날짜별</button>
+      <button data-view="students" aria-selected="false">학생</button>
+      <button data-view="notes"    aria-selected="false">메모</button>
+    </div>
+  </header>
+  <main id="app">
+    <!-- 첫 화면. 자바스크립트가 뜨기 전에도 로고부터 보이게 HTML 에 직접 넣어 둔다. -->
+    <div class="splash">
+      <img src="./logo.png" alt="퀘스트 아카데미">
+      <div class="cap dots">불러오는 중</div>
+    </div>
+  </main>
+</div>
+
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.45.4/dist/umd/supabase.js"></script>
+<script>
+/* =====================================================================
+   출석 앱 — 웹으로 보기 (읽기 전용)
+
+   폰 안 Room DB 가 여전히 원본이고, 이 화면은 Supabase 에 올라온 사본을 봅니다.
+   여기서는 아무것도 고치지 않습니다. 쓰기를 열면 폰과 웹이 서로 덮어쓰는
+   충돌 경로가 하나 더 생기기 때문입니다. 먼저 "보이는 것"부터 확인합니다.
+
+   보안: 아래 두 값은 공개해도 되는 값입니다.
+   - URL 은 주소이고
+   - publishable(=anon) 키는 "브라우저에 넣으라고 만든" 키입니다.
+   진짜 방어선은 이 키가 아니라 DB 의 RLS 정책(owner_id = auth.uid())입니다.
+   로그인하지 않으면 이 키로는 한 줄도 읽히지 않습니다.
+   ===================================================================== */
+const SUPABASE_URL = "https://pmfrkohhpgtxhmpyapkd.supabase.co";
+const SUPABASE_KEY = "sb_publishable_Gl6RkDpmPauexP5uGZ23ZQ_9C-uEcPt";
+
+const db = supabase.createClient(SUPABASE_URL, SUPABASE_KEY);
+
+const app   = document.getElementById("app");
+const tabs  = document.getElementById("tabs");
+const whoEl = document.getElementById("who");
+
+let view      = "day";
+let day       = todayISO();   // 날짜별 화면이 보고 있는 날
+let students  = [];           // 학생 전체 (이름순)
+let openId    = null;         // 상세를 펼친 학생 id
+
+/* ---------- 작은 도구들 ---------- */
+function todayISO(){
+  // 서버가 아니라 "보는 사람의 폰 시계" 기준 오늘. 한국에서 쓰는 앱이라 이게 맞습니다.
+  const d = new Date();
+  return d.getFullYear() + "-" + String(d.getMonth()+1).padStart(2,"0")
+                        + "-" + String(d.getDate()).padStart(2,"0");
+}
+function shiftDay(iso, delta){
+  const [y,m,d] = iso.split("-").map(Number);
+  const t = new Date(y, m-1, d + delta);
+  return t.getFullYear() + "-" + String(t.getMonth()+1).padStart(2,"0")
+                        + "-" + String(t.getDate()).padStart(2,"0");
+}
+const WEEK = ["일","월","화","수","목","금","토"];
+function labelDay(iso){
+  const [y,m,d] = iso.split("-").map(Number);
+  const t = new Date(y, m-1, d);
+  const tail = iso === todayISO() ? " · 오늘" : "";
+  return `${m}월 ${d}일 (${WEEK[t.getDay()]})${tail}`;
+}
+function hhmm(t){ return t ? String(t).slice(0,5) : ""; }
+function esc(s){
+  return String(s ?? "").replace(/[&<>"']/g, c =>
+    ({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[c]));
+}
+// "1,3,5" → "월·수·금"  (앱의 AttendDays 와 같은 규칙)
+function describeDays(raw){
+  const names = {1:"월",2:"화",3:"수",4:"목",5:"금",6:"토",7:"일"};
+  const list = String(raw||"").split(",").map(s=>s.trim()).filter(Boolean)
+                 .map(Number).filter(n=>names[n]);
+  return list.length ? list.sort((a,b)=>a-b).map(n=>names[n]).join("·") : null;
+}
+function dashPhone(p){
+  const n = String(p||"").replace(/\D/g,"");
+  if (n.length === 11) return n.slice(0,3)+"-"+n.slice(3,7)+"-"+n.slice(7);
+  if (n.length === 10) return n.slice(0,3)+"-"+n.slice(3,6)+"-"+n.slice(6);
+  return p || "";
+}
+
+/* =====================================================================
+   1. 로그인 화면
+   비밀번호가 없습니다. 이메일로 온 링크를 누르면 그게 곧 로그인입니다.
+   기억할 비밀번호가 없으니 잊어버릴 것도 없습니다.
+   ===================================================================== */
+function renderLogin(){
+  tabs.hidden = true;
+  whoEl.textContent = "";
+  app.innerHTML = `
+    <div class="splash" style="min-height:34vh;margin-bottom:6px">
+      <img src="./logo.png" alt="퀘스트 아카데미">
+    </div>
+    <div class="card" style="padding:18px">
+      <p style="margin:0 0 14px;font-size:15px">
+        이메일 주소를 넣으면 <b>로그인 링크</b>를 보내 드립니다.<br>
+        메일에서 그 링크를 누르면 바로 들어옵니다. 비밀번호는 없습니다.
+      </p>
+      <input id="email" type="email" inputmode="email" autocomplete="email"
+             placeholder="이메일 주소">
+      <button id="send" class="primary">로그인 링크 받기</button>
+      <div id="loginMsg" class="msg"></div>
+    </div>`;
+
+  const emailEl = document.getElementById("email");
+  const btn     = document.getElementById("send");
+  const msg     = document.getElementById("loginMsg");
+
+  btn.onclick = async () => {
+    const email = emailEl.value.trim();
+    if (!email) { msg.textContent = "이메일 주소를 넣어 주세요."; return; }
+    btn.disabled = true; btn.textContent = "보내는 중…";
+    const { error } = await db.auth.signInWithOtp({
+      email,
+      // 링크를 눌렀을 때 돌아올 주소. 지금 이 페이지입니다.
+      options: { emailRedirectTo: location.href.split("#")[0] }
+    });
+    btn.disabled = false; btn.textContent = "로그인 링크 받기";
+    msg.className = error ? "msg err" : "msg";
+    msg.textContent = error
+      ? "보내지 못했습니다: " + error.message
+      : email + " 로 링크를 보냈습니다. 메일함(스팸함도)을 확인해 주세요.";
+  };
+}
+
+/* =====================================================================
+   2. 로그인 뒤 — 자료 읽어오기
+   ===================================================================== */
+async function loadStudents(){
+  const { data, error } = await db
+    .from("students")
+    .select("id,name,birth_date,guardian_phone,attend_days,has_card")
+    .is("deleted_at", null)
+    .order("name");
+  if (error) throw error;
+  students = data;
+}
+
+async function attendanceOn(date){
+  const { data, error } = await db
+    .from("attendance")
+    .select("student_id,check_in_time,check_out_time")
+    .eq("date", date)
+    .is("deleted_at", null);
+  if (error) throw error;
+  const map = {};
+  data.forEach(r => map[r.student_id] = r);
+  return map;
+}
+
+/* ---------- 날짜별 화면 ---------- */
+async function renderDay(){
+  app.innerHTML = `
+    <div class="datebar">
+      <button id="prev" aria-label="이전 날">‹</button>
+      <div class="today">${esc(labelDay(day))}</div>
+      <button id="next" aria-label="다음 날">›</button>
+    </div>
+    <div class="empty">불러오는 중…</div>`;
+  document.getElementById("prev").onclick = () => { day = shiftDay(day,-1); renderDay(); };
+  document.getElementById("next").onclick = () => { day = shiftDay(day, 1); renderDay(); };
+
+  const rec  = await attendanceOn(day);
+  const came = students.filter(s => rec[s.id]);
+  const miss = students.filter(s => !rec[s.id]);
+
+  // 등원 시각이 이른 순으로 — 실제로 온 순서입니다.
+  came.sort((a,b) => (rec[a.id].check_in_time || "").localeCompare(rec[b.id].check_in_time || ""));
+
+  const cameHtml = came.map(s => {
+    const r = rec[s.id];
+    return `<div class="row">
+      <div class="grow"><div class="name">${esc(s.name)}</div></div>
+      <div class="time">
+        <span class="in">${hhmm(r.check_in_time)}</span>
+        ${r.check_out_time
+            ? ` <span class="out">→ ${hhmm(r.check_out_time)}</span>`
+            : ` <span class="out">→ —</span>`}
+      </div></div>`;
+  }).join("");
+
+  const missHtml = miss.map(s =>
+    `<div class="row"><div class="grow"><div class="name">${esc(s.name)}</div></div>
+       <span class="pill grey">기록 없음</span></div>`).join("");
+
+  app.querySelector(".empty").outerHTML = `
+    <div class="section">등원 ${came.length}명</div>
+    <div class="card">${cameHtml || '<div class="empty">이 날은 기록이 없습니다.</div>'}</div>
+    ${miss.length ? `<div class="section">안 온 학생 ${miss.length}명</div>
+                     <div class="card">${missHtml}</div>` : ""}`;
+}
+
+/* ---------- 학생 목록 / 상세 ---------- */
+async function renderStudents(){
+  const rec = await attendanceOn(todayISO());
+
+  app.innerHTML = `<div class="section">학생 ${students.length}명</div>
+    <div class="card">` + students.map(s => {
+      const r = rec[s.id];
+      return `<div class="row tap" data-id="${s.id}">
+        <div class="grow">
+          <div class="name">${esc(s.name)}
+            ${s.has_card ? "" : '<span class="pill grey" style="margin-left:6px">카드 없음</span>'}
+          </div>
+          <div class="sub">${esc(describeDays(s.attend_days) || "등원 요일 미지정")}</div>
+        </div>
+        ${r ? `<span class="pill">오늘 ${hhmm(r.check_in_time)}</span>` : ""}
+      </div>
+      <div id="d-${s.id}" hidden></div>`;
+    }).join("") + `</div>`;
+
+  app.querySelectorAll(".row.tap").forEach(el => {
+    el.onclick = () => toggleDetail(el.dataset.id);
+  });
+  if (openId) toggleDetail(openId, true);
+}
+
+async function toggleDetail(id, force){
+  const box = document.getElementById("d-" + id);
+  if (!box) return;
+  if (!box.hidden && !force){ box.hidden = true; openId = null; return; }
+
+  // 한 번에 하나만 펼칩니다 — 목록이 길어져도 화면이 안 어지럽습니다.
+  app.querySelectorAll('[id^="d-"]').forEach(b => b.hidden = true);
+  openId = id;
+  box.hidden = false;
+  box.innerHTML = `<div class="row"><div class="grow sub">불러오는 중…</div></div>`;
+
+  const s = students.find(x => x.id === id);
+  const [att, notes] = await Promise.all([
+    db.from("attendance").select("date,check_in_time,check_out_time")
+      .eq("student_id", id).is("deleted_at", null)
+      .order("date", { ascending:false }).limit(30),
+    db.from("student_notes").select("date,memo")
+      .eq("student_id", id).is("deleted_at", null)
+      .order("date", { ascending:false }).limit(30)
+  ]);
+
+  const phone = s.guardian_phone
+    ? `<a class="call" href="tel:${esc(String(s.guardian_phone).replace(/\D/g,""))}">
+         보호자에게 전화 ${esc(dashPhone(s.guardian_phone))}</a>`
+    : `<span class="sub">보호자 연락처가 없습니다</span>`;
+
+  const attHtml = (att.data || []).map(r =>
+    `<div class="row" style="padding:9px 14px">
+       <div class="grow sub">${esc(r.date)}</div>
+       <div class="time"><span class="in">${hhmm(r.check_in_time)}</span>
+         <span class="out">→ ${r.check_out_time ? hhmm(r.check_out_time) : "—"}</span></div>
+     </div>`).join("") || `<div class="empty" style="padding:14px">출결 기록이 없습니다.</div>`;
+
+  const noteHtml = (notes.data || []).map(n =>
+    `<div class="row" style="padding:9px 14px">
+       <div class="sub" style="width:92px">${esc(n.date)}</div>
+       <div class="grow">${esc(n.memo)}</div>
+     </div>`).join("");
+
+  box.innerHTML = `
+    <div style="padding:12px 14px;background:var(--bg)">
+      <div style="margin-bottom:10px">${phone}</div>
+      <div class="sub">생년월일 ${esc(s.birth_date)}</div>
+      <div class="section" style="margin:14px 0 4px">최근 출결</div>
+      <div class="card">${attHtml}</div>
+      ${noteHtml ? `<div class="section" style="margin:14px 0 4px">메모</div>
+                    <div class="card">${noteHtml}</div>` : ""}
+    </div>`;
+}
+
+/* ---------- 메모 화면 ---------- */
+async function renderNotes(){
+  app.innerHTML = `<div class="empty">불러오는 중…</div>`;
+  const { data, error } = await db
+    .from("student_notes").select("student_id,date,memo")
+    .is("deleted_at", null).order("date");
+  if (error) { app.innerHTML = `<div class="empty err">${esc(error.message)}</div>`; return; }
+
+  const today = todayISO();
+  const name  = id => (students.find(s => s.id === id) || {}).name || "(지워진 학생)";
+  const line  = n => `<div class="row">
+      <div class="sub" style="width:92px">${esc(n.date)}</div>
+      <div class="grow"><div class="name">${esc(name(n.student_id))}</div>
+        <div class="sub">${esc(n.memo)}</div></div>
+    </div>`;
+
+  const soon = data.filter(n => n.date >= today);
+  const past = data.filter(n => n.date <  today).reverse();
+
+  app.innerHTML = `
+    <div class="section">앞으로 ${soon.length}건</div>
+    <div class="card">${soon.map(line).join("") || '<div class="empty">예정된 메모가 없습니다.</div>'}</div>
+    ${past.length ? `<div class="section">지난 메모</div>
+                     <div class="card">${past.map(line).join("")}</div>` : ""}`;
+}
+
+/* =====================================================================
+   3. 화면 전환과 시작
+   ===================================================================== */
+async function draw(){
+  try {
+    if (view === "day")      await renderDay();
+    else if (view === "students") await renderStudents();
+    else                      await renderNotes();
+  } catch (e) {
+    app.innerHTML = `<div class="empty err">불러오지 못했습니다.<br>${esc(e.message || e)}</div>`;
+  }
+}
+
+tabs.querySelectorAll("button").forEach(b => {
+  b.onclick = () => {
+    view = b.dataset.view;
+    tabs.querySelectorAll("button").forEach(x =>
+      x.setAttribute("aria-selected", String(x === b)));
+    draw();
+  };
+});
+
+async function start(){
+  const { data:{ session } } = await db.auth.getSession();
+  if (!session) { renderLogin(); return; }
+
+  tabs.hidden = false;
+  whoEl.innerHTML = `${esc(session.user.email)} ·
+    <button class="linkbtn" id="out">로그아웃</button>`;
+  document.getElementById("out").onclick = async () => {
+    await db.auth.signOut(); location.href = location.href.split("#")[0];
+  };
+
+  app.innerHTML = `<div class="splash"><img src="./logo.png" alt="">
+    <div class="cap dots">불러오는 중</div></div>`;
+  try { await loadStudents(); }
+  catch (e) {
+    app.innerHTML = `<div class="empty err">학생 명단을 못 읽었습니다.<br>${esc(e.message)}</div>`;
+    return;
+  }
+  draw();
+}
+
+// 메일 링크로 돌아오면 여기서 세션이 만들어집니다.
+db.auth.onAuthStateChange((event) => { if (event === "SIGNED_IN") start(); });
+start();
+</script>
+</body>
+</html>
