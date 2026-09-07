@@ -267,6 +267,19 @@ async function loadStudents(){
   students = data;
 }
 
+/**
+ * 학원 공지. 실패해도 빈 목록을 돌려준다 —
+ * 공지 하나 때문에 출결 화면 전체가 안 뜨면 손해가 더 크다.
+ */
+async function loadNotices(){
+  const { data, error } = await db
+    .from("notices")
+    .select("body,created_at")
+    .is("deleted_at", null)
+    .order("created_at", { ascending: false });
+  return error ? [] : (data || []);
+}
+
 async function attendanceOn(date){
   const { data, error } = await db
     .from("attendance")
@@ -291,7 +304,8 @@ async function renderDay(){
   document.getElementById("prev").onclick = () => { day = shiftDay(day,-1); renderDay(); };
   document.getElementById("next").onclick = () => { day = shiftDay(day, 1); renderDay(); };
 
-  const rec  = await attendanceOn(day);
+  // 둘을 동시에 물어본다. 순서대로 기다릴 이유가 없다.
+  const [rec, notices] = await Promise.all([attendanceOn(day), loadNotices()]);
   const came = students.filter(s => rec[s.id]);
   const miss = students.filter(s => !rec[s.id]);
 
@@ -315,6 +329,11 @@ async function renderDay(){
        <span class="pill grey">기록 없음</span></div>`).join("");
 
   app.querySelector(".empty").outerHTML = `
+    ${notices.length ? `<div class="section">공지</div>
+      <div class="card">${notices.map(n => `<div class="row">
+        <div class="sub" style="width:52px">${esc((n.created_at || "").slice(5, 10).replace("-", "/"))}</div>
+        <div class="grow">${esc(n.body)}</div></div>`).join("")}</div>` : ""}
+
     <div class="section">등원 ${came.length}명</div>
     <div class="card">${cameHtml || '<div class="empty">이 날은 기록이 없습니다.</div>'}</div>
     ${miss.length ? `<div class="section">안 온 학생 ${miss.length}명</div>
@@ -494,6 +513,7 @@ async function renderParent(key){
   const days = describeDays(data.student.attend_days);
   const records = data.attendance || [];
   const notes = (data.notes || []).filter(n => n.date >= todayISO());
+  const notices = data.notices || [];
 
   // 이번 달 출석 일수 — 학부모가 가장 먼저 궁금해하는 숫자다.
   const month = todayISO().slice(0, 7);
@@ -510,6 +530,11 @@ async function renderParent(key){
         <span class="pill">이번 달 ${thisMonth}일 출석</span>
       </div>
     </div>
+
+    ${notices.length ? `<div class="section">학원 공지</div>
+      <div class="card">${notices.map(n => `<div class="row">
+        <div class="sub" style="width:52px">${esc((n.date || "").slice(5, 10).replace("-", "/"))}</div>
+        <div class="grow">${esc(n.body)}</div></div>`).join("")}</div>` : ""}
 
     ${notes.length ? `<div class="section">예정된 보강 · 안내</div>
       <div class="card">${notes.map(n => `<div class="row">
