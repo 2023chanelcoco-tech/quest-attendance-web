@@ -260,7 +260,7 @@ function renderLogin(){
 async function loadStudents(){
   const { data, error } = await db
     .from("students")
-    .select("id,name,birth_date,guardian_phone,attend_days,has_card")
+    .select("id,name,birth_date,guardian_phone,attend_days,has_card,access_key")
     .is("deleted_at", null)
     .order("name");
   if (error) throw error;
@@ -389,11 +389,33 @@ async function toggleDetail(id, force){
     <div style="padding:12px 14px;background:var(--bg)">
       <div style="margin-bottom:10px">${phone}</div>
       <div class="sub">생년월일 ${esc(s.birth_date)}</div>
+      <div style="margin-top:10px">
+        <button class="linkbtn" data-copy="${esc(parentLink(s))}">학부모용 링크 복사</button>
+        <span class="sub" id="copied-${esc(s.id)}"></span>
+      </div>
       <div class="section" style="margin:14px 0 4px">최근 출결</div>
       <div class="card">${attHtml}</div>
       ${noteHtml ? `<div class="section" style="margin:14px 0 4px">메모</div>
                     <div class="card">${noteHtml}</div>` : ""}
     </div>`;
+
+  // 링크 복사. 클립보드가 막힌 브라우저(구형·비 https)에서는 주소를 그대로 보여준다.
+  const copyButton = box.querySelector("[data-copy]");
+  const note = box.querySelector(`#copied-${CSS.escape(id)}`);
+  copyButton.onclick = async () => {
+    const link = copyButton.dataset.copy;
+    try {
+      await navigator.clipboard.writeText(link);
+      note.textContent = " 복사했습니다";
+    } catch {
+      note.textContent = " " + link;
+    }
+  };
+}
+
+/** 학부모에게 보낼 주소. 이 열쇠 하나로 그 학생 것만 열린다. */
+function parentLink(student){
+  return location.origin + location.pathname + "#s=" + student.access_key;
 }
 
 /* ---------- 메모 화면 ---------- */
@@ -444,7 +466,77 @@ tabs.querySelectorAll("button").forEach(b => {
   };
 });
 
+/* =====================================================================
+   학부모 화면 — 로그인 없음
+
+   주소 끝의 `#s=열쇠` 로 들어오면 그 학생 것만 보여줍니다. 이름·등하원 시각·메모만
+   내려옵니다. 보호자 연락처와 생년월일은 **서버가 아예 보내지 않습니다** —
+   화면에서 숨기는 게 아니라, 응답에 없으니 화면을 뜯어봐도 없습니다.
+   ===================================================================== */
+async function renderParent(key){
+  tabs.hidden = true;
+  whoEl.textContent = "";
+  app.innerHTML = `<div class="splash"><img src="./logo.png" alt="">
+    <div class="cap dots">불러오는 중</div></div>`;
+
+  const { data, error } = await db.rpc("student_view", { key });
+
+  if (error || !data || !data.student) {
+    app.innerHTML = `<div class="splash">
+      <img src="./logo.png" alt="">
+      <div class="cap">주소가 올바르지 않거나 더 이상 쓰지 않는 주소입니다.<br>
+        학원에 문의해 주세요.</div>
+    </div>`;
+    return;
+  }
+
+  const name = data.student.name;
+  const days = describeDays(data.student.attend_days);
+  const records = data.attendance || [];
+  const notes = (data.notes || []).filter(n => n.date >= todayISO());
+
+  // 이번 달 출석 일수 — 학부모가 가장 먼저 궁금해하는 숫자다.
+  const month = todayISO().slice(0, 7);
+  const thisMonth = records.filter(r => r.date.startsWith(month)).length;
+
+  document.title = `${name} · 출석`;
+
+  app.innerHTML = `
+    <div style="text-align:center;padding:18px 0 6px">
+      <img src="./logo.png" alt="" style="width:84px">
+      <div style="font-size:22px;font-weight:700;margin-top:8px">${esc(name)}</div>
+      <div class="sub">${esc(days ? days + " 등원" : "퀘스트어학원")}</div>
+      <div style="margin-top:10px">
+        <span class="pill">이번 달 ${thisMonth}일 출석</span>
+      </div>
+    </div>
+
+    ${notes.length ? `<div class="section">예정된 보강 · 안내</div>
+      <div class="card">${notes.map(n => `<div class="row">
+        <div class="sub" style="width:92px">${esc(n.date)}</div>
+        <div class="grow">${esc(n.memo)}</div></div>`).join("")}</div>` : ""}
+
+    <div class="section">출결 기록</div>
+    <div class="card">${
+      records.length
+        ? records.map(r => `<div class="row">
+            <div class="grow">${esc(r.date)}</div>
+            <div class="time"><span class="in">${hhmm(r.in)}</span>
+              <span class="out"> → ${r.out ? hhmm(r.out) : "—"}</span></div>
+          </div>`).join("")
+        : '<div class="empty">아직 기록이 없습니다.</div>'
+    }</div>
+
+    <div class="msg" style="text-align:center">
+      등원·하원 시각은 카드를 찍은 시각입니다.
+    </div>`;
+}
+
 async function start(){
+  // 학부모 링크는 로그인보다 먼저 본다. 로그인 화면을 잠깐이라도 보여주면 안 된다.
+  const parentKey = new URLSearchParams(location.hash.replace(/^#/, "")).get("s");
+  if (parentKey) { await renderParent(parentKey); return; }
+
   const { data:{ session } } = await db.auth.getSession();
   if (!session) { renderLogin(); return; }
 
